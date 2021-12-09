@@ -1,8 +1,10 @@
 import socket
 import asyncio
 
+NICK_MAX_LEN: int = 25
 
-async def new_server() -> None:
+
+async def new_server(ip: str, port: int) -> None:
     clients: dict[socket.socket, str] = {}
 
     async def share_msg(encoded_msg: bytes, sender: bytes):
@@ -11,11 +13,23 @@ async def new_server() -> None:
                 loop.sock_sendall(client, sender + b': ' + encoded_msg))
 
     async def handle_client(client: socket.socket):
+
+        def check_nickname(nick: str) -> str:
+            if not nick:
+                return "Nick is empty"
+            if nick in clients.values():
+                return 'Nickname already used'
+            l = len(nick)
+            if l > NICK_MAX_LEN:
+                return "Nickname is too long"
+            return "+"
+
         print(f"New connection: {client}")
         while True:
-            nick = (await loop.sock_recv(client, 1024))
+            nick = (await loop.sock_recv(client, 1024)).strip()
             nick_str = nick.decode("utf-8")
-            if nick not in clients.values():
+            checked_nick_message = check_nickname(nick_str)
+            if checked_nick_message == "+":
                 await loop.sock_sendall(client,
                                         f'+{" ".join(clients.values()) or "None"}'.encode(
                                             "utf-8"))
@@ -23,30 +37,38 @@ async def new_server() -> None:
                 break
             else:
                 await loop.sock_sendall(client,
-                                        'Nickname already used'.encode("utf-8"))
-        print(f"{client} Submitted nickname: {nick_str}")
+                                        checked_nick_message.encode("utf-8"))
+
         await share_msg(f"{nick_str} Connected".encode("utf-8"),
                         "system".encode("utf-8"))
+
         while True:
-            msg = (await loop.sock_recv(client, 1024))
-            if not msg:
+            try:
+                msg = (await loop.sock_recv(client, 1024))
+                if not msg:
+                    client.close()
+                    del clients[client]
+                    print(f"connection with {client} closed")
+                    await share_msg(f"{nick_str} Disconnected".encode("utf-8"),
+                                    "system".encode("utf-8"))
+                    break
+                decoded = msg.decode("utf-8")
+                print(
+                    f"new message from {client}:\nmsg: <{decoded}>\nraw: <{msg}>\n--------------------------------------------\n")
+                loop.create_task(share_msg(msg, nick))
+            except Exception as e:
+                print("Error with reciving message:", e)
                 client.close()
-                del clients[client]
-                print(f"connection with {client} closed")
-                await share_msg(f"{nick_str} Disconnected".encode("utf-8"),
-                                "system".encode("utf-8"))
+                if client in clients.keys():
+                    del clients[client]
                 break
-            decoded = msg.decode("utf-8")
-            print(
-                f"new message from {client}:\nmsg: <{decoded}>\nraw: <{msg}>\n--------------------------------------------\n")
-            loop.create_task(share_msg(msg, nick))
 
     async def connection_handler():
         while True:
             client, _ = await loop.sock_accept(server)
             loop.create_task(handle_client(client))
 
-    server = socket.create_server(("localhost", 48666), family=socket.AF_INET)
+    server = socket.create_server((ip, port), family=socket.AF_INET)
     server.listen(16)
     loop = asyncio.get_event_loop()
     server.setblocking(False)
@@ -95,7 +117,7 @@ def new_client(addr, port):
                 if recv:
                     if recv[0] == '+':
                         print("Nickname submitted")
-                        print("Users on server: ", recv[1:])
+                        print("Users on server:", recv[1:])
                         break
                     else:
                         print("server: ", recv)
@@ -112,7 +134,6 @@ def new_client(addr, port):
         print("connected")
         nick = upload_nickname(client)
         client.setblocking(False)
-        print("Joined")
         for pending in asyncio.get_event_loop().run_until_complete(
                 asyncio.wait((input_msg(client), print_msg(client, nick)),
                              return_when=asyncio.FIRST_COMPLETED))[1]:
@@ -122,11 +143,15 @@ def new_client(addr, port):
 
 
 def main():
-    mode = input("Type? 1 - server; 2 - client; 3 - cancel\n")
-    if mode == '1':
-        asyncio.run(new_server())
-    if mode == '2':
-        new_client(input("ip: "), int(input("port: ") or 48666))
+    mode = None
+    while mode != '3':
+        mode = input("Type? 1 - server; 2 - client; 3 - cancel\n")
+        if mode == '1':
+            asyncio.run(new_server(input("ip: ") or "localhost",
+                                   int(input("port: ") or 48666)))
+        if mode == '2':
+            new_client(input("ip: ") or "localhost",
+                       int(input("port: ") or 48666))
 
 
 if __name__ == "__main__":

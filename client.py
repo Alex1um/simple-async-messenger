@@ -1,5 +1,6 @@
 import socket
 import asyncio
+import websockets
 
 NICK_MAX_LEN: int = 25
 
@@ -8,9 +9,12 @@ async def new_server(ip: str, port: int) -> None:
     clients: dict[socket.socket, str] = {}
 
     async def share_msg(encoded_msg: bytes, sender: bytes):
-        for client, _ in clients.items():
-            loop.create_task(
-                loop.sock_sendall(client, sender + b': ' + encoded_msg))
+        await asyncio.gather(
+            *(loop.sock_sendall(client, sender + b': ' + encoded_msg) for
+              client, _ in clients.items()))
+        # for client, _ in clients.items():
+        #     loop.create_task(
+        #         loop.sock_sendall(client, sender + b': ' + encoded_msg))
 
     async def handle_client(client: socket.socket):
 
@@ -25,19 +29,24 @@ async def new_server(ip: str, port: int) -> None:
             return "+"
 
         print(f"New connection: {client}")
-        while True:
-            nick = (await loop.sock_recv(client, 1024)).strip()
-            nick_str = nick.decode("utf-8")
-            checked_nick_message = check_nickname(nick_str)
-            if checked_nick_message == "+":
-                await loop.sock_sendall(client,
-                                        f'+{" ".join(clients.values()) or "None"}'.encode(
-                                            "utf-8"))
-                clients[client] = nick_str
-                break
-            else:
-                await loop.sock_sendall(client,
-                                        checked_nick_message.encode("utf-8"))
+        try:
+            while True:
+                nick = (await loop.sock_recv(client, 1024)).strip()
+                nick_str = nick.decode("utf-8")
+                checked_nick_message = check_nickname(nick_str)
+                if checked_nick_message == "+":
+                    await loop.sock_sendall(client,
+                                            f'+{" ".join(clients.values()) or "None"}'.encode(
+                                                "utf-8"))
+                    clients[client] = nick_str
+                    break
+                else:
+                    await loop.sock_sendall(client,
+                                            checked_nick_message.encode(
+                                                "utf-8"))
+        except Exception as e:
+            print(f"Error while uploading nickname: {e}")
+            return
 
         await share_msg(f"{nick_str} Connected".encode("utf-8"),
                         "system".encode("utf-8"))
@@ -149,7 +158,7 @@ def main():
         if mode == '1':
             asyncio.run(new_server(input("ip: ") or "localhost",
                                    int(input("port: ") or 48666)))
-        if mode == '2':
+        elif mode == '2':
             new_client(input("ip: ") or "localhost",
                        int(input("port: ") or 48666))
 

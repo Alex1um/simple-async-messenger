@@ -16,21 +16,21 @@ class SockListener(Listener):
             self.sock = sock
             self.is_serving = True
             self.max_bytes = max_bytes
-            print("Raw socket connection created")
+            print(f"Raw socket connection created")
 
         async def serve(self):
-            print("Starting raw socket serving...")
+            print(f"<{self.con_id}>Starting raw socket serving...")
             try:
                 while self.is_serving:
                     msg = (await self.__recv(self.max_bytes)).decode("utf-8")
                     if not msg:
                         raise ConnectionAbortedError
-                    print(f"New raw socket message: <{msg}>")
+                    # print(f"New raw socket message: <{msg}>")
                     await self._server.on_message(self, msg)
             except Exception as f:
-                print(f"Raw Socket connection error: {f}")
+                print(f"<{self.con_id}>Raw Socket connection error: {f}")
             finally:
-                print("Raw Socket connection closed")
+                print(f"<{self.con_id}>Raw Socket connection closed")
                 await self.close()
 #
         async def __recv(self, byte_count: int):
@@ -85,23 +85,19 @@ class WebSockListener(Listener):
             return await self._wssp.send(msg.encode("utf-8"))
 
         async def serve(self):
-            print("Websocket serving started")
-            while 1:
-                try:
-                    msg = (await self._wssp.recv()).decode("utf-8")
-                    print(f"new message from websocket: <{msg}>")
-                    await self._server.on_message(self, msg)
-                except websockets.ConnectionClosedOK:
-                    print("Websocket emit closing")
-                    break
-                except Exception as e:
-                    print(f"Websocket connection Error: {e}")
-                    break
+            print(f"<{self.con_id}>Websocket serving started")
             try:
-                await self.close()
+                while 1:
+                    msg = (await self._wssp.recv()).decode("utf-8")
+                    # print(f"new message from websocket: <{msg}>")
+                    await self._server.on_message(self, msg)
+            except websockets.ConnectionClosedOK:
+                print(f"<{self.con_id}>Websocket emit closing")
             except Exception as e:
-                print("Websocket closing error:", e)
-            print("WebSocket connection closed")
+                print(f"<{self.con_id}>Websocket connection Error: {e}")
+            finally:
+                await self.close()
+                print(f"<{self.con_id}>WebSocket connection closed")
 
         async def close(self):
             await Connection.close(self)
@@ -116,7 +112,7 @@ class WebSockListener(Listener):
     async def __handle(self, con: WebSocketServerProtocol):
         print("New websocket connection")
         connection = WebSockListener.WebSockConnection(con, self._server)
-        print("Websocket connection created")
+        print(f"<{con.id}>Websocket connection created")
         await self.add_connection(connection)
         await connection.serve()
 
@@ -134,15 +130,16 @@ class SockWebsockServer(Server):
 
     async def on_connect(self, con: Connection):
         # self.con_ids[con] = self.con_id
-        con.id = self.con_id
-        await con.write(f"{con.id}|0-")
-        print(f"Id <{con.id}> sent")
+        con.con_id = self.con_id
+        await con.write(f"<{con.con_id};0;>")
+        print(f"Id <{con.con_id}> sent")
         self.con_id += 1
 
     async def on_message(self, connection: Connection, msg: str):
         con: Connection
+        print(f"<{connection.con_id}>Sended: {msg}")
         for con in self.connections:
-            await con.write(f"{connection.id}|{msg}")
+            await con.write(f"<{connection.con_id};{msg}>")
 
 
 if __name__ == "__main__":

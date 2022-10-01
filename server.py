@@ -170,8 +170,8 @@ class SockWebsockServer(Server):
 
 if __name__ == "__main__":
     sv = SockWebsockServer(
-        (SockListener, "0.0.0.0", "48666", [16, 1024], {}),
-        (WebSockListener, "0.0.0.0", "48667", [], {}),
-        (HttpListener, "0.0.0.0", "8080", [], {}),
+        (SockListener, "0.0.0.0", os.environ.get("SocketPort", default="48666"), [16, 1024], {}),
+        (WebSockListener, "0.0.0.0", os.environ.get("WebSocketPort", default="48667"), [], {}),
+        (HttpListener, "0.0.0.0", os.environ.get("HTTPPort", default="8080"), [], {}),
     )
     asyncio.run(sv.start())

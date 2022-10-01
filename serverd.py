@@ -1,5 +1,5 @@
 import asyncio
-from typing import Type
+from typing import *
 
 Ip = str
 Port = str
@@ -61,7 +61,7 @@ class Server:
     is_working: bool = False
 
     def __init__(self,
-                 *listeners: tuple[Type[Listener], Ip, Port, Args, Kwargs]):
+                 *listeners: Tuple[Type[Listener], Ip, Port, Args, Kwargs]):
         self.listeners = ListenerList()
         self.connections = ConnectionSet()
 

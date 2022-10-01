@@ -5,6 +5,7 @@ import socket
 from websockets import server as wss
 from websockets.server import WebSocketServerProtocol
 import websockets
+import os
 
 
 class SockListener(Listener):
@@ -44,6 +45,7 @@ class SockListener(Listener):
 
     def __init__(self, server: Server, host: str, port: str, max_cons: int,
                  max_bytes: int, *args, **kwargs):
+        print(f"raw sockets listening {host}:{port}")
         super().__init__(server, host, port, *args, **kwargs)
         self._connection_set = server.connections
         self.server_sock = socket.create_server((host, int(port)), family=socket.AF_INET)
@@ -104,6 +106,7 @@ class WebSockListener(Listener):
 
     def __init__(self, server: Server, host: Ip="localhost", port: Port="48666", *args, **kwargs):
         Listener.__init__(self, server, host, port, *args, **kwargs)
+        print(f"websockets listening {host}:{port}")
         self._host = host
         self._port = int(port)
         self._server_args = args
@@ -145,6 +148,6 @@ class SockWebsockServer(Server):
 if __name__ == "__main__":
     sv = SockWebsockServer(
         (SockListener, "0.0.0.0", "48666", [16, 1024], {}),
-        (WebSockListener, "0.0.0.0", "48667", [], {})
+        (WebSockListener, "0.0.0.0", os.environ["PORT"] or "48667", [], {})
     )
     asyncio.run(sv.start())

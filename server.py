@@ -6,6 +6,29 @@ from websockets import server as wss
 from websockets.server import WebSocketServerProtocol
 import websockets
 import os
+from aiohttp import web
+
+
+class HttpListener(Listener):
+    routes = web.RouteTableDef()
+
+    def __init__(self, server: Server, host: str, port: str, *args, **kwargs):
+        self._server = server
+        self.app = web.Application()
+        self.app.router.add_get("/healthz", self.__handle)
+        self.runner = web.AppRunner(self.app)
+        self.host = host
+        self.port = port
+
+    async def listen(self):
+        await self.runner.setup()
+        self.site = web.TCPSite(self.runner, self.host, int(self.port))
+        await self.site.start()
+        while 1:
+            await asyncio.sleep(3600)
+
+    async def __handle(self, request):
+        return web.HTTPOk()
 
 
 class SockListener(Listener):
@@ -148,6 +171,7 @@ class SockWebsockServer(Server):
 if __name__ == "__main__":
     sv = SockWebsockServer(
         (SockListener, "0.0.0.0", "48666", [16, 1024], {}),
-        (WebSockListener, "0.0.0.0", os.environ["PORT"] or "48667", [], {})
+        (WebSockListener, "0.0.0.0", "48667", [], {}),
+        (HttpListener, "0.0.0.0", "8080", [], {}),
     )
     asyncio.run(sv.start())

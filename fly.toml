@@ -9,7 +9,7 @@ processes = []
   builder = "paketobuildpacks/builder:base"
 
 [env]
-  HTTPPort = "80"
+  HTTPPort = "8080"
 
 [experimental]
   allowed_public_ports = [48666, 48667, 8080, 80]
@@ -17,7 +17,7 @@ processes = []
 
 [[services]]
   http_checks = []
-  internal_port = 80
+  internal_port = 8080
   processes = ["app"]
   protocol = "tcp"
   script_checks = []
